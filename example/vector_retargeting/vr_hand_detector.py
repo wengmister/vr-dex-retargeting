@@ -107,6 +107,53 @@ class VRHandDetector:
             # For right hand, flip X to correct mirroring
             new_landmarks[:, 0] = -landmarks[:, 0]
         
+        # Compensate for human-to-robot finger length differences
+        # Human pinky is shorter than robot pinky - need to extend finger segments
+        # while preserving kinematic chain relationships for thumb opposition
+        
+        pinky_mcp = 17   # PINKY_MCP (base)
+        pinky_pip = 18   # PINKY_PIP
+        pinky_dip = 19   # PINKY_DIP  
+        pinky_tip = 20   # PINKY_TIP
+        
+        # Adaptive scaling based on finger curl state
+        # Calculate finger extension (distance from MCP to TIP)
+        pinky_extension = np.linalg.norm(new_landmarks[pinky_tip] - new_landmarks[pinky_mcp])
+        
+        # Scale more when extended (for reaching), less when curled (for fist-making)
+        # Assuming max extension ~0.08-0.10, min curl ~0.02-0.04
+        max_extension = 0.10
+        min_extension = 0.03
+        
+        # Normalize extension ratio (0.0 = fully curled, 1.0 = fully extended)
+        extension_ratio = np.clip((pinky_extension - min_extension) / (max_extension - min_extension), 0.0, 1.0)
+        
+        # Adaptive scaling: more scaling when extended, less when curled
+        base_scale = 1.2   # Minimum scaling for curled positions
+        max_scale = 2.0    # Maximum scaling for extended positions
+        
+        adaptive_scale = base_scale + (max_scale - base_scale) * extension_ratio
+        
+        # Apply same adaptive scaling to all segments
+        mcp_to_pip_scale = adaptive_scale
+        pip_to_dip_scale = adaptive_scale  
+        dip_to_tip_scale = adaptive_scale
+        
+        # Apply progressive scaling along kinematic chain
+        # Start from MCP (base remains unchanged) and extend each segment
+        
+        # Extend MCP->PIP segment
+        mcp_to_pip_vector = new_landmarks[pinky_pip] - new_landmarks[pinky_mcp]
+        new_landmarks[pinky_pip] = new_landmarks[pinky_mcp] + mcp_to_pip_vector * mcp_to_pip_scale
+        
+        # Extend PIP->DIP segment (using new PIP position)
+        pip_to_dip_vector = new_landmarks[pinky_dip] - new_landmarks[pinky_pip]  
+        new_landmarks[pinky_dip] = new_landmarks[pinky_pip] + pip_to_dip_vector * pip_to_dip_scale
+        
+        # Extend DIP->TIP segment (using new DIP position)
+        dip_to_tip_vector = new_landmarks[pinky_tip] - new_landmarks[pinky_dip]
+        new_landmarks[pinky_tip] = new_landmarks[pinky_dip] + dip_to_tip_vector * dip_to_tip_scale
+        
         return new_landmarks
     
     def start_udp_listener(self):

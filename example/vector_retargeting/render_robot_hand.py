@@ -97,7 +97,7 @@ def render_by_sapien(
     elif "svh" in robot_name:
         loader.scale = 1.5
     elif "xhand" in robot_name:
-        loader.scale = 1.0
+        loader.scale = 1.1
 
     if "glb" not in robot_name:
         filepath = str(filepath).replace(".urdf", "_glb.urdf")
