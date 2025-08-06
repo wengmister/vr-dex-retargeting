@@ -188,3 +188,11 @@ class VRHandDetector:
             z *= -1
         frame = np.stack([x, normal, z], axis=1)
         return frame
+
+    def draw_skeleton_on_image(self, image, keypoint_2d, style="default"):
+        """
+        Draw skeleton on image. For VR, keypoint_2d is None, so return image unchanged.
+        """
+        if keypoint_2d is None:
+            return image
+        return image

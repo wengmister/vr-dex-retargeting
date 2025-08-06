@@ -28,7 +28,7 @@ def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path:
     retargeting = RetargetingConfig.load_from_file(config_path).build()
 
     hand_type = "Right" if "right" in config_path.lower() else "Left"
-    detector = VRHandDetector(hand_type=hand_type, selfie=False)
+    detector = VRHandDetector(hand_type=hand_type)
 
     sapien.render.set_viewer_shader_dir("default")
     sapien.render.set_camera_shader_dir("default")
@@ -124,18 +124,13 @@ def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path:
     while True:
         try:
             bgr = queue.get(timeout=5)
-            rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
         except Empty:
             logger.error(
                 "Fail to fetch image from camera in 5 secs. Please check your web camera device."
             )
             return
 
-        _, joint_pos, keypoint_2d, _ = detector.detect(rgb)
-        bgr = detector.draw_skeleton_on_image(bgr, keypoint_2d, style="default")
-        cv2.imshow("realtime_retargeting_demo", bgr)
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
+        _, joint_pos, keypoint_2d, _ = detector.detect()
 
         if joint_pos is None:
             logger.warning(f"{hand_type} hand is not detected.")
