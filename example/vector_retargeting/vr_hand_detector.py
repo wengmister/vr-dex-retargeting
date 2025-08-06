@@ -123,6 +123,9 @@ class VRHandDetector:
         # Apply robot-specific retargeting if specified
         if self.robot_name and "xhand" in self.robot_name:
             joint_pos = adaptive_retargeting_xhand(joint_pos)
+        elif self.robot_name and "bidexhand" in self.robot_name:
+            # bidexhand has a long wrist offset. Scaling up the whole hand to compensate
+            joint_pos *= 1.5
         
         return 1, joint_pos, None, wrist_rot  # keypoint_2d=None for VR
     
