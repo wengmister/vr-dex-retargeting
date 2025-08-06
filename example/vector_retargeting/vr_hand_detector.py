@@ -20,9 +20,70 @@ OPERATOR2MANO_LEFT = np.array(
 )
 
 
+def adaptive_retargeting_xhand(landmarks):
+    """
+    Apply adaptive pinky retargeting specifically for XHand robot.
+    Compensates for human-to-robot finger length differences by using
+    adaptive scaling based on finger extension state.
+    
+    Args:
+        landmarks: np.ndarray of shape (21, 3) with hand landmarks
+        
+    Returns:
+        np.ndarray of shape (21, 3) with retargeted landmarks
+    """
+    landmarks = landmarks.copy()
+    
+    pinky_mcp = 17   # PINKY_MCP (base)
+    pinky_pip = 18   # PINKY_PIP
+    pinky_dip = 19   # PINKY_DIP  
+    pinky_tip = 20   # PINKY_TIP
+    
+    # Adaptive scaling based on finger curl state
+    # Calculate finger extension (distance from MCP to TIP)
+    pinky_extension = np.linalg.norm(landmarks[pinky_tip] - landmarks[pinky_mcp])
+    
+    # Scale more when extended (for reaching), less when curled (for fist-making)
+    # Tuned specifically for XHand robot kinematics
+    max_extension = 0.10
+    min_extension = 0.03
+    
+    # Normalize extension ratio (0.0 = fully curled, 1.0 = fully extended)
+    extension_ratio = np.clip((pinky_extension - min_extension) / (max_extension - min_extension), 0.0, 1.0)
+    
+    # Adaptive scaling: more scaling when extended, less when curled
+    base_scale = 1.2   # Minimum scaling for curled positions
+    max_scale = 2.2    # Maximum scaling for extended positions
+    
+    adaptive_scale = base_scale + (max_scale - base_scale) * extension_ratio
+    
+    # Apply same adaptive scaling to all segments
+    mcp_to_pip_scale = adaptive_scale
+    pip_to_dip_scale = adaptive_scale  
+    dip_to_tip_scale = adaptive_scale
+    
+    # Apply progressive scaling along kinematic chain
+    # Start from MCP (base remains unchanged) and extend each segment
+    
+    # Extend MCP->PIP segment
+    mcp_to_pip_vector = landmarks[pinky_pip] - landmarks[pinky_mcp]
+    landmarks[pinky_pip] = landmarks[pinky_mcp] + mcp_to_pip_vector * mcp_to_pip_scale
+    
+    # Extend PIP->DIP segment (using new PIP position)
+    pip_to_dip_vector = landmarks[pinky_dip] - landmarks[pinky_pip]  
+    landmarks[pinky_dip] = landmarks[pinky_pip] + pip_to_dip_vector * pip_to_dip_scale
+    
+    # Extend DIP->TIP segment (using new DIP position)
+    dip_to_tip_vector = landmarks[pinky_tip] - landmarks[pinky_dip]
+    landmarks[pinky_tip] = landmarks[pinky_dip] + dip_to_tip_vector * dip_to_tip_scale
+    
+    return landmarks
+
+
 class VRHandDetector:
-    def __init__(self, hand_type="Right", udp_port=9000):
+    def __init__(self, hand_type="Right", udp_port=9000, robot_name=None):
         self.hand_type = hand_type
+        self.robot_name = robot_name
         self.operator2mano = OPERATOR2MANO_RIGHT if hand_type == "Right" else OPERATOR2MANO_LEFT
         self.udp_port = udp_port
         self.latest_landmarks = None
@@ -59,6 +120,10 @@ class VRHandDetector:
         # Transform to MANO coordinate system
         joint_pos = keypoint_3d_array @ wrist_rot @ self.operator2mano
         
+        # Apply robot-specific retargeting if specified
+        if self.robot_name and "xhand" in self.robot_name:
+            joint_pos = adaptive_retargeting_xhand(joint_pos)
+        
         return 1, joint_pos, None, wrist_rot  # keypoint_2d=None for VR
     
     def get_vr_hand_landmarks(self) -> np.ndarray:
@@ -84,77 +149,15 @@ class VRHandDetector:
         
         landmarks = self.latest_landmarks.copy()
         
-        # Scale down to match MediaPipe range (VR was ~5x larger than expected)
+        # Scale to match MediaPipe coordinate range
         landmarks *= 1.05
         
-        # Coordinate system analysis from comparison:
-        # MediaPipe ranges: X[-0.000, 0.050], Y[-0.057, 0.091], Z[0.000, 0.175]
-        # VR ranges: X[-0.295, 0.030], Y[-0.233, 0.455], Z[0.000, 0.907]
-        # 
-        # VR seems to have different axis orientation than MediaPipe
-        # Let's try remapping Unity coordinate system to match MediaPipe better
-        
-        # Create new coordinate mapping
-        new_landmarks = landmarks.copy()
-        
-        # Based on the data patterns, try remapping axes:
-        # VR X (left-right) -> MediaPipe X 
-        # VR Y (up-down) -> MediaPipe Y
-        # VR Z (forward-back) -> MediaPipe Z
-        # But with different scaling and orientation
-        
+        # Convert coordinate system: Unity left-handed to MediaPipe right-handed
         if self.hand_type == "Right":
             # For right hand, flip X to correct mirroring
-            new_landmarks[:, 0] = -landmarks[:, 0]
+            landmarks[:, 0] = -landmarks[:, 0]
         
-        # Compensate for human-to-robot finger length differences
-        # Human pinky is shorter than robot pinky - need to extend finger segments
-        # while preserving kinematic chain relationships for thumb opposition
-        
-        pinky_mcp = 17   # PINKY_MCP (base)
-        pinky_pip = 18   # PINKY_PIP
-        pinky_dip = 19   # PINKY_DIP  
-        pinky_tip = 20   # PINKY_TIP
-        
-        # Adaptive scaling based on finger curl state
-        # Calculate finger extension (distance from MCP to TIP)
-        pinky_extension = np.linalg.norm(new_landmarks[pinky_tip] - new_landmarks[pinky_mcp])
-        
-        # Scale more when extended (for reaching), less when curled (for fist-making)
-        # Assuming max extension ~0.08-0.10, min curl ~0.02-0.04
-        max_extension = 0.10
-        min_extension = 0.03
-        
-        # Normalize extension ratio (0.0 = fully curled, 1.0 = fully extended)
-        extension_ratio = np.clip((pinky_extension - min_extension) / (max_extension - min_extension), 0.0, 1.0)
-        
-        # Adaptive scaling: more scaling when extended, less when curled
-        base_scale = 1.2   # Minimum scaling for curled positions
-        max_scale = 2.0    # Maximum scaling for extended positions
-        
-        adaptive_scale = base_scale + (max_scale - base_scale) * extension_ratio
-        
-        # Apply same adaptive scaling to all segments
-        mcp_to_pip_scale = adaptive_scale
-        pip_to_dip_scale = adaptive_scale  
-        dip_to_tip_scale = adaptive_scale
-        
-        # Apply progressive scaling along kinematic chain
-        # Start from MCP (base remains unchanged) and extend each segment
-        
-        # Extend MCP->PIP segment
-        mcp_to_pip_vector = new_landmarks[pinky_pip] - new_landmarks[pinky_mcp]
-        new_landmarks[pinky_pip] = new_landmarks[pinky_mcp] + mcp_to_pip_vector * mcp_to_pip_scale
-        
-        # Extend PIP->DIP segment (using new PIP position)
-        pip_to_dip_vector = new_landmarks[pinky_dip] - new_landmarks[pinky_pip]  
-        new_landmarks[pinky_dip] = new_landmarks[pinky_pip] + pip_to_dip_vector * pip_to_dip_scale
-        
-        # Extend DIP->TIP segment (using new DIP position)
-        dip_to_tip_vector = new_landmarks[pinky_tip] - new_landmarks[pinky_dip]
-        new_landmarks[pinky_tip] = new_landmarks[pinky_dip] + dip_to_tip_vector * dip_to_tip_scale
-        
-        return new_landmarks
+        return landmarks
     
     def start_udp_listener(self):
         """Start UDP socket listener in a separate thread"""

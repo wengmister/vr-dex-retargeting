@@ -28,7 +28,6 @@ def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path:
     retargeting = RetargetingConfig.load_from_file(config_path).build()
 
     hand_type = "Right" if "right" in config_path.lower() else "Left"
-    detector = VRHandDetector(hand_type=hand_type)
 
     sapien.render.set_viewer_shader_dir("default")
     sapien.render.set_camera_shader_dir("default")
@@ -72,6 +71,10 @@ def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path:
     loader = scene.create_urdf_loader()
     filepath = Path(config.urdf_path)
     robot_name = filepath.stem
+    
+    # Initialize VR detector with robot name for robot-specific adaptations
+    detector = VRHandDetector(hand_type=hand_type, robot_name=robot_name)
+    
     loader.load_multiple_collisions_from_file = True
     if "ability" in robot_name:
         loader.scale = 1.5
