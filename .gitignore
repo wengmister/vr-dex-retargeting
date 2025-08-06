@@ -16,3 +16,4 @@ imgui.ini
 /log
 /temp/
 *.egg-info
+/venv
