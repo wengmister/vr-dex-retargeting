@@ -82,7 +82,32 @@ class VRHandDetector:
         # Index 13-16: RING_MCP, RING_PIP, RING_DIP, RING_TIP
         # Index 17-20: PINKY_MCP, PINKY_PIP, PINKY_DIP, PINKY_TIP
         
-        return self.latest_landmarks.copy()
+        landmarks = self.latest_landmarks.copy()
+        
+        # Scale down to match MediaPipe range (VR was ~5x larger than expected)
+        landmarks *= 1.05
+        
+        # Coordinate system analysis from comparison:
+        # MediaPipe ranges: X[-0.000, 0.050], Y[-0.057, 0.091], Z[0.000, 0.175]
+        # VR ranges: X[-0.295, 0.030], Y[-0.233, 0.455], Z[0.000, 0.907]
+        # 
+        # VR seems to have different axis orientation than MediaPipe
+        # Let's try remapping Unity coordinate system to match MediaPipe better
+        
+        # Create new coordinate mapping
+        new_landmarks = landmarks.copy()
+        
+        # Based on the data patterns, try remapping axes:
+        # VR X (left-right) -> MediaPipe X 
+        # VR Y (up-down) -> MediaPipe Y
+        # VR Z (forward-back) -> MediaPipe Z
+        # But with different scaling and orientation
+        
+        if self.hand_type == "Right":
+            # For right hand, flip X to correct mirroring
+            new_landmarks[:, 0] = -landmarks[:, 0]
+        
+        return new_landmarks
     
     def start_udp_listener(self):
         """Start UDP socket listener in a separate thread"""
@@ -111,6 +136,9 @@ class VRHandDetector:
                 else:
                     # Debug: show what we're receiving that doesn't match
                     if len(decoded_data) > 0:
+                        # ignore right wrist data:
+                        if "Right wrist" in decoded_data:
+                            continue
                         print(f"Received non-landmark data: '{decoded_data[:50]}...'")
                     else:
                         print("Received empty data")
