@@ -1,3 +1,42 @@
+# VR-Dex-Retargeting
+
+VR enabled dexterous retargeting based on [AnyTeleop](https://yzqin.github.io/anyteleop/) project by Yuzhe Qin et al.
+
+The `dex retargeting` module now supports all robot hand motion retargeting based on Meta Quest VR input. Quest App can be found in [this repo](https://github.com/wengmister/quest-wrist-tracker/tree/dex-retargeter).
+
+## Changelog
+
+<details>
+<summary>Click to expand changelog</summary>
+
+- Added VR UDP streaming data input for `dexpilot` retargeting algorithm.
+- Added support for the following robotic hands
+  - [Robotera XHand](https://www.robotera.com/en/goods1/4.html)
+
+    ![xhand](/example/xhand.gif)
+
+  - [Bidexhand](https://github.com/wengmister/BiDexHand)
+  
+    ![bidexhand](/example/bidexhand.gif)
+
+</details>
+
+## Demo
+
+Navigate to `/example/vector_retargeting`
+
+```python
+
+python3 vr_realtime_retargeting.py --robot-name xhand --retargeting-type dexpilot --hand-type right
+
+```
+
+You will also need to `pip install` additional requirements under `example`
+
+----------
+Below are the original repo content.
+
+
 <div align="center">
   <h1 align="center"> Dex Retargeting </h1>
   <h3 align="center">
