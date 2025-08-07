@@ -19,7 +19,7 @@ The `dex retargeting` module now supports all robot hand motion retargeting base
   
     ![bidexhand](/example/bidexhand.gif)
   
-  You will need to pull asset submodule from [this updated repo](https://github.com/wengmister/dex-urdf-plus)
+  You will need to pull asset submodule from [this updated repo](https://github.com/wengmister/dex-urdf-plus).
 
 </details>
 
