@@ -1,0 +1,36 @@
+retargeting:
+  type: DexPilot
+  urdf_path: bidexhand/bidexhand_right.urdf
+
+  # Target refers to the retargeting target, which is the robot hand
+  wrist_link_name: "hand_base_link"
+  target_joint_names: [ 'tcf_joint', 'tca_joint', 'tma_joint', 'tmf_joint', 'tdf_joint',
+                      'ima_joint', 'imf_joint', 'ipf_joint', 'idf_joint',
+                      'mma_joint', 'mmf_joint', 'mpf_joint', 'mdf_joint',
+                      'rma_joint', 'rmf_joint', 'rpf_joint', 'rdf_joint',
+                      'pma_joint', 'pmf_joint', 'ppf_joint', 'pdf_joint']
+  finger_tip_link_names: [ 't_tip_link', 'i_tip_link', 'm_tip_link', 'r_tip_link', 'p_tip_link']
+  # scaling_factor: 1.3
+
+  # A smaller alpha means stronger filtering, i.e. more smooth but also larger latency
+  low_pass_alpha: 0.25
+
+  project_dist: 0.03
+  escape_dist: 0.03
+
+# retargeting:
+#   type: DexPilot
+#   urdf_path: xhand/xhand_old_right_glb.urdf
+
+#   # Target refers to the retargeting target, which is the robot hand
+#   wrist_link_name: "base_link"
+#   target_joint_names: [ 'right_hand_thumb_bend_joint', 'right_hand_thumb_rota_joint1', 'right_hand_thumb_rota_joint2']
+#   finger_tip_link_names: [ "right_hand_thumb_rota_tip", "right_hand_index_rota_tip", "right_hand_mid_tip", "right_hand_ring_tip", "right_hand_pinky_tip" ]
+#   # finger_tip_link_names: [ "right_hand_thumb_rota_tip", "right_hand_index_rota_tip"]
+#   scaling_factor: 1.2
+
+#   # A smaller alpha means stronger filtering, i.e. more smooth but also larger latency
+#   low_pass_alpha: 0.8
+
+#   project_dist: 0.03
+#   escape_dist: 0.03

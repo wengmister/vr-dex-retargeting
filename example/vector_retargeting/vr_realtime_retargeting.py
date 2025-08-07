@@ -19,7 +19,7 @@ from dex_retargeting.constants import (
     get_default_config_path,
 )
 from dex_retargeting.retargeting_config import RetargetingConfig
-from single_hand_detector import SingleHandDetector
+from vr_hand_detector import VRHandDetector
 
 
 def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path: str):
@@ -28,7 +28,6 @@ def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path:
     retargeting = RetargetingConfig.load_from_file(config_path).build()
 
     hand_type = "Right" if "right" in config_path.lower() else "Left"
-    detector = SingleHandDetector(hand_type=hand_type, selfie=False)
 
     sapien.render.set_viewer_shader_dir("default")
     sapien.render.set_camera_shader_dir("default")
@@ -72,6 +71,10 @@ def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path:
     loader = scene.create_urdf_loader()
     filepath = Path(config.urdf_path)
     robot_name = filepath.stem
+    
+    # Initialize VR detector with robot name for robot-specific adaptations
+    detector = VRHandDetector(hand_type=hand_type, robot_name=robot_name)
+    
     loader.load_multiple_collisions_from_file = True
     if "ability" in robot_name:
         loader.scale = 1.5
@@ -115,6 +118,8 @@ def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path:
         robot.set_pose(sapien.Pose([0, 0, -0.13]))
     elif "xhand" in robot_name:
         robot.set_pose(sapien.Pose([0, 0, -0.15]))
+    elif "bidexhand" in robot_name:
+        robot.set_pose(sapien.Pose([0, 0, -0.15]))
 
     # Different robot loader may have different orders for joints
     sapien_joint_names = [joint.get_name() for joint in robot.get_active_joints()]
@@ -126,18 +131,13 @@ def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path:
     while True:
         try:
             bgr = queue.get(timeout=5)
-            rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
         except Empty:
             logger.error(
                 "Fail to fetch image from camera in 5 secs. Please check your web camera device."
             )
             return
 
-        _, joint_pos, keypoint_2d, _ = detector.detect(rgb)
-        bgr = detector.draw_skeleton_on_image(bgr, keypoint_2d, style="default")
-        cv2.imshow("realtime_retargeting_demo", bgr)
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
+        _, joint_pos, keypoint_2d, _ = detector.detect()
 
         if joint_pos is None:
             logger.warning(f"{hand_type} hand is not detected.")
