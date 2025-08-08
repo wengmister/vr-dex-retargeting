@@ -2,6 +2,7 @@ import numpy as np
 import socket
 import threading
 import time
+import subprocess
 
 OPERATOR2MANO_RIGHT = np.array(
     [
@@ -81,18 +82,25 @@ def adaptive_retargeting_xhand(landmarks):
 
 
 class VRHandDetector:
-    def __init__(self, hand_type="Right", udp_port=9000, robot_name=None):
+    def __init__(self, hand_type="Right", udp_port=9000, robot_name=None, use_tcp=False, tcp_port=8000):
         self.hand_type = hand_type
         self.robot_name = robot_name
         self.operator2mano = OPERATOR2MANO_RIGHT if hand_type == "Right" else OPERATOR2MANO_LEFT
         self.udp_port = udp_port
+        self.use_tcp = use_tcp
+        self.tcp_port = tcp_port
         self.latest_landmarks = None
         self.socket = None
+        self.tcp_connection = None
+        self.tcp_client_address = None
         self.listening_thread = None
         self.is_running = False
         
-        # Start UDP listener
-        self.start_udp_listener()
+        # Start listener (UDP or TCP)
+        if self.use_tcp:
+            self.start_tcp_listener()
+        else:
+            self.start_udp_listener()
         
     def detect(self):
         """
@@ -162,6 +170,29 @@ class VRHandDetector:
         
         return landmarks
     
+    def start_tcp_listener(self):
+        """Start TCP socket listener in a separate thread"""
+        try:
+            # Setup adb reverse port forwarding first
+            if not self.setup_adb_reverse(self.tcp_port):
+                print(f"adb reverse setup failed, but continuing with TCP socket setup")
+                print(f"You may need to run 'adb reverse tcp:{self.tcp_port} tcp:{self.tcp_port}' manually")
+            
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.socket.bind(('localhost', self.tcp_port))
+            self.socket.listen(1)  # Allow one connection
+            self.is_running = True
+            
+            self.listening_thread = threading.Thread(target=self._tcp_listener, daemon=True)
+            self.listening_thread.start()
+            print(f"Successfully bound VR TCP socket to localhost:{self.tcp_port}")
+        except Exception as e:
+            print(f"Failed to start TCP listener: {e}")
+            # Clean up adb reverse if socket setup failed
+            self.cleanup_adb_reverse(self.tcp_port)
+            raise
+    
     def start_udp_listener(self):
         """Start UDP socket listener in a separate thread"""
         try:
@@ -172,8 +203,66 @@ class VRHandDetector:
             
             self.listening_thread = threading.Thread(target=self._udp_listener, daemon=True)
             self.listening_thread.start()
+            print(f"Successfully bound VR UDP socket to port {self.udp_port}")
         except Exception as e:
             print(f"Failed to start UDP listener: {e}")
+    
+    def _tcp_listener(self):
+        """Background thread to listen for TCP data"""
+        while self.is_running:
+            try:
+                # Wait for a connection if we don't have one
+                if self.tcp_connection is None:
+                    print("Waiting for TCP connection...")
+                    self.tcp_connection, self.tcp_client_address = self.socket.accept()
+                    self.tcp_connection.settimeout(1.0)  # 1 second timeout for recv
+                    print(f"TCP connection established from {self.tcp_client_address}")
+                
+                # Try to receive data
+                try:
+                    data = self.tcp_connection.recv(4096)
+                    if not data:
+                        # Connection closed by client
+                        print("TCP client disconnected")
+                        self.tcp_connection.close()
+                        self.tcp_connection = None
+                        self.tcp_client_address = None
+                        continue
+                    
+                    decoded_data = data.decode('utf-8').strip()
+                    
+                    if decoded_data.startswith("Right landmarks:"):
+                        landmarks = self._parse_landmark_data(decoded_data)
+                        if landmarks is not None:
+                            self.latest_landmarks = landmarks
+                    else:
+                        # Debug: show what we're receiving that doesn't match
+                        if len(decoded_data) > 0:
+                            # ignore right wrist data:
+                            if "Right wrist" in decoded_data:
+                                continue
+                            print(f"Received non-landmark data: '{decoded_data[:50]}...'")
+                        else:
+                            print("Received empty data")
+                    
+                except socket.timeout:
+                    # No data received within timeout
+                    continue
+                    
+                except ConnectionResetError:
+                    print("TCP connection reset by client")
+                    self.tcp_connection.close()
+                    self.tcp_connection = None
+                    self.tcp_client_address = None
+                    continue
+                    
+            except Exception as e:
+                print(f"Error in TCP listener: {e}")
+                if self.tcp_connection:
+                    self.tcp_connection.close()
+                    self.tcp_connection = None
+                    self.tcp_client_address = None
+                time.sleep(1.0)  # Wait before retrying
     
     def _udp_listener(self):
         """Background thread to listen for UDP data"""
@@ -231,13 +320,80 @@ class VRHandDetector:
             print(f"Raw data: {data_string[:200]}...")
             return None
     
-    def stop_udp_listener(self):
-        """Stop the UDP listener and cleanup"""
+    def setup_adb_reverse(self, port):
+        """Setup adb reverse port forwarding"""
+        try:
+            # First check if adb is available
+            result = subprocess.run(['adb', 'devices'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode != 0:
+                print("adb command not found. Please install Android SDK platform-tools.")
+                return False
+            
+            # Check if device is connected
+            if "device" not in result.stdout:
+                print("No Android device connected via adb.")
+                return False
+            
+            # Setup reverse port forwarding
+            cmd = ['adb', 'reverse', f'tcp:{port}', f'tcp:{port}']
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            
+            if result.returncode == 0:
+                print(f"Successfully setup adb reverse tcp:{port} tcp:{port}")
+                return True
+            else:
+                print(f"Failed to setup adb reverse: {result.stderr}")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            print("adb command timed out")
+            return False
+        except FileNotFoundError:
+            print("adb command not found. Please install Android SDK platform-tools.")
+            return False
+        except Exception as e:
+            print(f"Error setting up adb reverse: {e}")
+            return False
+
+    def cleanup_adb_reverse(self, port):
+        """Remove adb reverse port forwarding"""
+        try:
+            cmd = ['adb', 'reverse', '--remove', f'tcp:{port}']
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            
+            if result.returncode == 0:
+                print(f"Successfully removed adb reverse tcp:{port}")
+            else:
+                print(f"Failed to remove adb reverse: {result.stderr}")
+                
+        except Exception as e:
+            print(f"Error cleaning up adb reverse: {e}")
+    
+    def stop_listener(self):
+        """Stop the listener and cleanup"""
         self.is_running = False
+        
+        # Close TCP connection if exists
+        if self.tcp_connection:
+            self.tcp_connection.close()
+        
+        # Close main socket
         if self.socket:
             self.socket.close()
+        
+        # Clean up adb reverse if using TCP
+        if self.use_tcp:
+            self.cleanup_adb_reverse(self.tcp_port)
+            
+        # Wait for thread to finish
         if self.listening_thread:
             self.listening_thread.join(timeout=2.0)
+    
+    def stop_udp_listener(self):
+        """Stop the UDP listener and cleanup (deprecated, use stop_listener instead)"""
+        print("Warning: stop_udp_listener is deprecated, use stop_listener instead")
+        self.stop_listener()
 
     @staticmethod
     def estimate_frame_from_hand_points(keypoint_3d_array: np.ndarray) -> np.ndarray:
@@ -274,6 +430,12 @@ class VRHandDetector:
         """
         Draw skeleton on image. For VR, keypoint_2d is None, so return image unchanged.
         """
+        _ = style  # Suppress unused parameter warning
         if keypoint_2d is None:
             return image
         return image
+    
+    def __del__(self):
+        """Cleanup resources when object is destroyed"""
+        if hasattr(self, 'use_tcp') and self.use_tcp and hasattr(self, 'tcp_port'):
+            self.cleanup_adb_reverse(self.tcp_port)

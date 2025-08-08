@@ -73,8 +73,8 @@ def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path:
     robot_name = filepath.stem
     
     # Initialize VR detector with robot name for robot-specific adaptations
-    detector = VRHandDetector(hand_type=hand_type, robot_name=robot_name)
-    
+    detector = VRHandDetector(hand_type=hand_type, robot_name=robot_name, use_tcp=True)
+
     loader.load_multiple_collisions_from_file = True
     if "ability" in robot_name:
         loader.scale = 1.5
