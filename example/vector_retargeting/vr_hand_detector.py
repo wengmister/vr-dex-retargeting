@@ -96,6 +96,11 @@ class VRHandDetector:
         self.listening_thread = None
         self.is_running = False
         
+        # Message counting for periodic reporting
+        self.valid_message_count = 0
+        self.last_report_time = time.time()
+        self.report_interval = 1.0  # Report every second
+        
         # Start listener (UDP or TCP)
         if self.use_tcp:
             self.start_tcp_listener()
@@ -295,6 +300,10 @@ class VRHandDetector:
     def _parse_landmark_data(self, data_string):
         """Parse the UDP landmark data string into numpy array"""
         try:
+            # Check if message starts with "Right wrist" - suppress these exceptions
+            if "Right wrist:" in data_string:
+                return None
+            
             # Remove "Right landmarks:" prefix and split by commas
             values_str = data_string.replace("Right landmarks:", "").strip()
             raw_values = values_str.split(",")
@@ -313,9 +322,22 @@ class VRHandDetector:
             
             # Reshape into (21, 3) array
             landmarks = np.array(values).reshape(21, 3)
+            
+            # Increment valid message count and check for periodic reporting
+            self.valid_message_count += 1
+            current_time = time.time()
+            if current_time - self.last_report_time >= self.report_interval:
+                messages_per_second = self.valid_message_count / (current_time - self.last_report_time)
+                print(f"Valid messages per second: {messages_per_second:.1f}")
+                self.valid_message_count = 0
+                self.last_report_time = current_time
+            
             return landmarks
             
         except Exception as e:
+            # Suppress exceptions for "Right wrist" messages
+            if "Right wrist:" in data_string or "could not convert string to float: '" in str(e) and "Right wrist:" in str(e):
+                return None
             print(f"Failed to parse landmark data: {e}")
             print(f"Raw data: {data_string[:200]}...")
             return None
