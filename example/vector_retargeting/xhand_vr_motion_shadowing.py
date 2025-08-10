@@ -147,6 +147,62 @@ def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path:
     retargeting_to_sapien = np.array(
         [retargeting_joint_names.index(name) for name in sapien_joint_names]
     ).astype(int)
+    
+    # Debug logging: print joint name mappings
+    logger.info("=== JOINT MAPPING DEBUG ===")
+    logger.info(f"Robot name: {robot_name}")
+    logger.info(f"Retargeting type: {retargeting.optimizer.retargeting_type}")
+    logger.info(f"Number of Sapien joints: {len(sapien_joint_names)}")
+    logger.info(f"Number of retargeting joints: {len(retargeting_joint_names)}")
+    logger.info("Sapien joint names (order as loaded from URDF):")
+    for i, name in enumerate(sapien_joint_names):
+        logger.info(f"  [{i}]: {name}")
+    logger.info("Retargeting joint names (order from config):")
+    for i, name in enumerate(retargeting_joint_names):
+        logger.info(f"  [{i}]: {name}")
+    logger.info("Mapping array (retargeting -> sapien indices):")
+    logger.info(f"  {retargeting_to_sapien}")
+    logger.info("=== END JOINT MAPPING DEBUG ===")
+    
+    # Also get the target joint names from the optimizer for comparison
+    if hasattr(retargeting.optimizer, 'target_joint_names'):
+        target_joint_names = retargeting.optimizer.target_joint_names
+        logger.info(f"Target joint names from optimizer: {target_joint_names}")
+        logger.info(f"Number of target joints: {len(target_joint_names)}")
+    
+    # XHand interface expects 12 joints
+    expected_xhand_joints = 12
+    logger.info(f"XHand interface expects {expected_xhand_joints} joints")
+    if len(joint_positions if 'joint_positions' in locals() else sapien_joint_names) != expected_xhand_joints:
+        logger.warning(f"Joint count mismatch! Sapien has {len(sapien_joint_names)} joints, XHand expects {expected_xhand_joints}")
+        
+    # Create mapping from retargeting output to desired XHand joint order
+    # Desired XHand order: [thumb_bend, thumb_rota1, thumb_rota2, index_bend, index_joint1, index_joint2, 
+    #                       mid_joint1, mid_joint2, ring_joint1, ring_joint2, pinky_joint1, pinky_joint2]
+    desired_xhand_joint_names = [
+        'right_hand_thumb_bend_joint', 'right_hand_thumb_rota_joint1', 'right_hand_thumb_rota_joint2',
+        'right_hand_index_bend_joint', 'right_hand_index_joint1', 'right_hand_index_joint2',
+        'right_hand_mid_joint1', 'right_hand_mid_joint2',
+        'right_hand_ring_joint1', 'right_hand_ring_joint2',
+        'right_hand_pinky_joint1', 'right_hand_pinky_joint2'
+    ]
+    
+    # Create mapping from retargeting output indices to desired XHand indices
+    retargeting_to_xhand = []
+    for desired_joint in desired_xhand_joint_names:
+        if desired_joint in retargeting_joint_names:
+            retargeting_to_xhand.append(retargeting_joint_names.index(desired_joint))
+        else:
+            logger.error(f"Desired joint {desired_joint} not found in retargeting joints!")
+            retargeting_to_xhand.append(0)  # fallback
+    
+    retargeting_to_xhand = np.array(retargeting_to_xhand)
+    
+    logger.info("=== XHAND JOINT MAPPING ===")
+    logger.info("Desired XHand joint order -> Retargeting index:")
+    for i, (desired_joint, retarg_idx) in enumerate(zip(desired_xhand_joint_names, retargeting_to_xhand)):
+        logger.info(f"  XHand[{i}] {desired_joint} <- Retargeting[{retarg_idx}]")
+    logger.info("=== END SETUP DEBUG INFO ===")
 
     while True:
         try:
@@ -172,15 +228,46 @@ def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path:
                 origin_indices = indices[0, :]
                 task_indices = indices[1, :]
                 ref_value = joint_pos[task_indices, :] - joint_pos[origin_indices, :]
+            
+            # Log retargeting input
+            logger.debug(f"Retargeting input ref_value shape: {ref_value.shape}")
+            logger.debug(f"Retargeting input ref_value: {ref_value.flatten()}")
+            
             qpos = retargeting.retarget(ref_value)
+            
+            # Log raw retargeting output
+            logger.debug(f"Raw retargeting output qpos shape: {qpos.shape}")
+            logger.debug(f"Raw retargeting output qpos: {qpos}")
+            
+            # Log joint names with their corresponding values
+            logger.debug("=== RETARGETING OUTPUT WITH JOINT NAMES ===")
+            for i, (joint_name, joint_value) in enumerate(zip(retargeting_joint_names, qpos)):
+                logger.debug(f"  [{i}] {joint_name}: {joint_value:.6f}")
+            
             robot.set_qpos(qpos[retargeting_to_sapien])
 
-            # additionally, print all joints in one line
+            # Log remapped joint positions for Sapien
             joint_positions = qpos[retargeting_to_sapien]
+            logger.debug("=== SAPIEN JOINT POSITIONS (after remapping) ===")
+            for i, (joint_name, joint_value) in enumerate(zip(sapien_joint_names, joint_positions)):
+                logger.debug(f"  Sapien[{i}] {joint_name}: {joint_value:.6f}")
+            
             print("Joint positions:", joint_positions)
 
-            for i in range(len(joint_positions)):
-                xhand_robot._hand_command.finger_command[i].position = joint_positions[i]
+            # Map retargeting output to correct XHand joint order
+            xhand_joint_positions = qpos[retargeting_to_xhand]
+            
+            # Log XHand command mapping
+            logger.debug("=== XHAND COMMAND MAPPING (Corrected Order) ===")
+            logger.debug("XHand Index -> Joint Name -> Value:")
+            for i, (joint_name, joint_value) in enumerate(zip(desired_xhand_joint_names, xhand_joint_positions)):
+                logger.debug(f"  XHand[{i}] {joint_name}: {joint_value:.6f}")
+                xhand_robot._hand_command.finger_command[i].position = joint_value
+            
+            # If we have fewer joints than expected, log which ones are missing
+            if len(xhand_joint_positions) < 12:
+                logger.debug(f"Missing {12 - len(xhand_joint_positions)} joints, keeping default positions for fingers [{len(xhand_joint_positions)}:11]")
+                
             xhand_robot.send_command()
 
 
