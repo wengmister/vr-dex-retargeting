@@ -20,9 +20,29 @@ from dex_retargeting.constants import (
 )
 from dex_retargeting.retargeting_config import RetargetingConfig
 from vr_hand_detector import VRHandDetector
+from xhand_interface import XHandInterface 
+import sys
 
 
 def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path: str):
+
+    # First of all, open device 
+    device_identifier = {}
+
+    xhand_robot = XHandInterface(hand_id=0, position=0.1, mode=3)
+
+    while True:
+        device_identifier['protocol'] = 'RS485'
+        # You can use enumerate_devices('RS485') to read serial port list information, choose ttyUSB prefixed port
+        # Get serial port list, choose ttyUSB*
+        xhand_robot.enumerate_devices('RS485')
+        device_identifier["serial_port"] = '/dev/ttyUSB0'
+        device_identifier['baud_rate'] = 3000000
+        if xhand_robot.open_device(device_identifier):
+            break
+        else:
+            sys.exit(1)
+
     RetargetingConfig.set_default_urdf_dir(str(robot_dir))
     logger.info(f"Start retargeting with config {config_path}")
     retargeting = RetargetingConfig.load_from_file(config_path).build()
@@ -140,7 +160,8 @@ def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path:
         _, joint_pos, keypoint_2d, _ = detector.detect()
 
         if joint_pos is None:
-            logger.warning(f"{hand_type} hand is not detected.")
+            # logger.debug(f"{hand_type} hand is not detected.")
+            pass
         else:
             retargeting_type = retargeting.optimizer.retargeting_type
             indices = retargeting.optimizer.target_link_human_indices
@@ -157,6 +178,11 @@ def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path:
             # additionally, print all joints in one line
             joint_positions = qpos[retargeting_to_sapien]
             print("Joint positions:", joint_positions)
+
+            for i in range(len(joint_positions)):
+                xhand_robot._hand_command.finger_command[i].position = joint_positions[i]
+            xhand_robot.send_command()
+
 
         for _ in range(2):
             viewer.render()
@@ -177,22 +203,19 @@ def produce_frame(queue: multiprocessing.Queue, camera_path: Optional[str] = Non
 
 
 def main(
-    robot_name: RobotName,
-    retargeting_type: RetargetingType,
-    hand_type: HandType,
     camera_path: Optional[str] = None,
 ):
     """
     Detects the human hand pose from a video and translates the human pose trajectory into a robot pose trajectory.
+    Uses xhand robot with dexpilot retargeting mode and right hand only.
 
     Args:
-        robot_name: The identifier for the robot. This should match one of the default supported robots.
-        retargeting_type: The type of retargeting, each type corresponds to a different retargeting algorithm.
-        hand_type: Specifies which hand is being tracked, either left or right.
-            Please note that retargeting is specific to the same type of hand: a left robot hand can only be retargeted
-            to another left robot hand, and the same applies for the right hand.
         camera_path: the device path to feed to opencv to open the web camera. It will use 0 by default.
     """
+    robot_name = RobotName.xhand
+    retargeting_type = RetargetingType.dexpilot
+    hand_type = HandType.right
+    
     config_path = get_default_config_path(robot_name, retargeting_type, hand_type)
     robot_dir = (
         Path(__file__).absolute().parent.parent.parent / "assets" / "robots" / "hands"
@@ -211,6 +234,7 @@ def main(
 
     producer_process.join()
     consumer_process.join()
+
     time.sleep(5)
 
     print("done")

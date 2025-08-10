@@ -99,7 +99,7 @@ class VRHandDetector:
         # Message counting for periodic reporting
         self.valid_message_count = 0
         self.last_report_time = time.time()
-        self.report_interval = 1.0  # Report every second
+        self.report_interval = 10.0  # Report every 10 seconds
         
         # Start listener (UDP or TCP)
         if self.use_tcp:
