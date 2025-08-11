@@ -96,24 +96,9 @@ def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path:
     detector = VRHandDetector(hand_type=hand_type, robot_name=robot_name, use_tcp=True)
 
     loader.load_multiple_collisions_from_file = True
-    if "ability" in robot_name:
-        loader.scale = 1.5
-    elif "dclaw" in robot_name:
-        loader.scale = 1.25
-    elif "allegro" in robot_name:
-        loader.scale = 1.4
-    elif "shadow" in robot_name:
-        loader.scale = 0.9
-    elif "bhand" in robot_name:
-        loader.scale = 1.5
-    elif "leap" in robot_name:
-        loader.scale = 1.4
-    elif "svh" in robot_name:
-        loader.scale = 1.5
-    elif "xhand" in robot_name:
-        loader.scale = 1.1
-    elif "bidexhand" in robot_name:
-        loader.scale = 1.0
+
+    # Only xhand in config now
+    loader.scale = 1.1
 
     if "glb" not in robot_name:
         filepath = str(filepath).replace(".urdf", "_glb.urdf")
@@ -256,6 +241,8 @@ def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path:
 
             # Map retargeting output to correct XHand joint order
             xhand_joint_positions = qpos[retargeting_to_xhand]
+
+            xhand_joint_positions[3] = -xhand_joint_positions[3]  # Invert index bend for XHand
             
             # Log XHand command mapping
             logger.debug("=== XHAND COMMAND MAPPING (Corrected Order) ===")
