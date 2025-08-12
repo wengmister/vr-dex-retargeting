@@ -111,11 +111,11 @@ class XHandInterface:
         print(f"=@= xhand hardware SDK version: {version}\n")
 
     def send_command(self):
-        print("//================================")
-        print("//Send hand activity command")
-        print("//================================")
+        # print("//================================")
+        # print("//Send hand activity command")
+        # print("//================================")
         error_struct = self._device.send_command(self._hand_id, self._hand_command)
-        print(f"=@= xhand send_command result: { error_struct.error_code == 0}, message: {error_struct.error_message}\n")
+        # print(f"=@= xhand send_command result: { error_struct.error_code == 0}, message: {error_struct.error_message}\n")
         # time.sleep(1)
 
     def read_state(self, fingure_id=2, force_update=True):
@@ -233,14 +233,15 @@ if __name__ == "__main__":
         'fist': [11.85, 74.58, 40, -3.08, 106.02, 110, 109.75, 107.56, 107.66, 110, 109.1, 109.15],
         'palm': [0, 80.66, 33.2, 0.00, 5.11, 0, 6.53, 0, 6.76, 4.41, 10.13, 0],
         'v': [38.32, 90, 52.08, 6.21, 2.6, 0, 2.1, 0, 110, 110, 110, 109.23],
-        'ok': [45.88, 41.54, 67.35, 2.22, 80.45, 70.82, 31.37, 10.39, 13.69, 16.88, 1.39, 10.55]
+        'ok': [45.88, 41.54, 67.35, 2.22, 80.45, 70.82, 31.37, 10.39, 13.69, 16.88, 1.39, 10.55],
+        'end': [0, 80.66, 33.2, 0.00, 5.11, 0, 6.53, 0, 6.76, 4.41, 10.13, 0]
     }
 
     for action in actions_list:
         for i in range(12):
             xhand_exam._hand_command.finger_command[i].position = actions_list[action][i] * math.pi / 180
         xhand_exam.send_command()
-        # time.sleep(0.2)
+        time.sleep(1)
 
     # Close device
     xhand_exam.close_device()

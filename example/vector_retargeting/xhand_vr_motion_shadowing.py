@@ -133,22 +133,6 @@ def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path:
         [retargeting_joint_names.index(name) for name in sapien_joint_names]
     ).astype(int)
     
-    # Debug logging: print joint name mappings
-    logger.info("=== JOINT MAPPING DEBUG ===")
-    logger.info(f"Robot name: {robot_name}")
-    logger.info(f"Retargeting type: {retargeting.optimizer.retargeting_type}")
-    logger.info(f"Number of Sapien joints: {len(sapien_joint_names)}")
-    logger.info(f"Number of retargeting joints: {len(retargeting_joint_names)}")
-    logger.info("Sapien joint names (order as loaded from URDF):")
-    for i, name in enumerate(sapien_joint_names):
-        logger.info(f"  [{i}]: {name}")
-    logger.info("Retargeting joint names (order from config):")
-    for i, name in enumerate(retargeting_joint_names):
-        logger.info(f"  [{i}]: {name}")
-    logger.info("Mapping array (retargeting -> sapien indices):")
-    logger.info(f"  {retargeting_to_sapien}")
-    logger.info("=== END JOINT MAPPING DEBUG ===")
-    
     # Also get the target joint names from the optimizer for comparison
     if hasattr(retargeting.optimizer, 'target_joint_names'):
         target_joint_names = retargeting.optimizer.target_joint_names
@@ -183,12 +167,6 @@ def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path:
     
     retargeting_to_xhand = np.array(retargeting_to_xhand)
     
-    logger.info("=== XHAND JOINT MAPPING ===")
-    logger.info("Desired XHand joint order -> Retargeting index:")
-    for i, (desired_joint, retarg_idx) in enumerate(zip(desired_xhand_joint_names, retargeting_to_xhand)):
-        logger.info(f"  XHand[{i}] {desired_joint} <- Retargeting[{retarg_idx}]")
-    logger.info("=== END SETUP DEBUG INFO ===")
-
     while True:
         try:
             bgr = queue.get(timeout=5)
@@ -214,41 +192,18 @@ def start_retargeting(queue: multiprocessing.Queue, robot_dir: str, config_path:
                 task_indices = indices[1, :]
                 ref_value = joint_pos[task_indices, :] - joint_pos[origin_indices, :]
             
-            # Log retargeting input
-            logger.debug(f"Retargeting input ref_value shape: {ref_value.shape}")
-            logger.debug(f"Retargeting input ref_value: {ref_value.flatten()}")
-            
             qpos = retargeting.retarget(ref_value)
-            
-            # Log raw retargeting output
-            logger.debug(f"Raw retargeting output qpos shape: {qpos.shape}")
-            logger.debug(f"Raw retargeting output qpos: {qpos}")
-            
-            # Log joint names with their corresponding values
-            logger.debug("=== RETARGETING OUTPUT WITH JOINT NAMES ===")
-            for i, (joint_name, joint_value) in enumerate(zip(retargeting_joint_names, qpos)):
-                logger.debug(f"  [{i}] {joint_name}: {joint_value:.6f}")
             
             robot.set_qpos(qpos[retargeting_to_sapien])
 
             # Log remapped joint positions for Sapien
             joint_positions = qpos[retargeting_to_sapien]
-            logger.debug("=== SAPIEN JOINT POSITIONS (after remapping) ===")
-            for i, (joint_name, joint_value) in enumerate(zip(sapien_joint_names, joint_positions)):
-                logger.debug(f"  Sapien[{i}] {joint_name}: {joint_value:.6f}")
-            
-            print("Joint positions:", joint_positions)
 
             # Map retargeting output to correct XHand joint order
             xhand_joint_positions = qpos[retargeting_to_xhand]
-
             xhand_joint_positions[3] = -xhand_joint_positions[3]  # Invert index bend for XHand
-            
-            # Log XHand command mapping
-            logger.debug("=== XHAND COMMAND MAPPING (Corrected Order) ===")
-            logger.debug("XHand Index -> Joint Name -> Value:")
+
             for i, (joint_name, joint_value) in enumerate(zip(desired_xhand_joint_names, xhand_joint_positions)):
-                logger.debug(f"  XHand[{i}] {joint_name}: {joint_value:.6f}")
                 xhand_robot._hand_command.finger_command[i].position = joint_value
             
             # If we have fewer joints than expected, log which ones are missing
