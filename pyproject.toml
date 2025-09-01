@@ -33,6 +33,12 @@ dependencies = [
     "anytree>=2.12.0",
     "pyyaml>=6.0.0",
     "lxml>=5.2.2",
+    "tyro",
+    "tqdm",
+    "opencv-python",
+    "mediapipe",
+    "sapien==3.0.0b0",
+    "loguru",
 ]
 
 [project.optional-dependencies]
