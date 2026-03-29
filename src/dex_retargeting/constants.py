@@ -31,6 +31,7 @@ class RobotName(enum.Enum):
     panda = enum.auto()
     xhand = enum.auto()  # For XHand robot
     bidexhand = enum.auto()  # For BiDexHand robot
+    sharpa_ha4 = enum.auto()  # For SharpaWave HA4 dexterous hand
 
 
 class RetargetingType(enum.Enum):
@@ -55,7 +56,8 @@ ROBOT_NAME_MAP = {
     RobotName.inspire: "inspire_hand",
     RobotName.panda: "panda_gripper",
     RobotName.xhand: "xhand",
-    RobotName.bidexhand: "bidexhand"
+    RobotName.bidexhand: "bidexhand",
+    RobotName.sharpa_ha4: "sharpa_ha4",
 }
 
 ROBOT_NAMES = list(ROBOT_NAME_MAP.keys())
