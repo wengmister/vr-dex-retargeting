@@ -7,12 +7,12 @@ import numpy as np
 import yaml
 import os
 
-from dex_retargeting import yourdfpy as urdf
-from dex_retargeting.kinematics_adaptor import MimicJointKinematicAdaptor
-from dex_retargeting.optimizer_utils import LPFilter
-from dex_retargeting.robot_wrapper import RobotWrapper
-from dex_retargeting.seq_retarget import SeqRetargeting
-from dex_retargeting.yourdfpy import DUMMY_JOINT_NAMES
+from vr_dex_retargeting import yourdfpy as urdf
+from vr_dex_retargeting.kinematics_adaptor import MimicJointKinematicAdaptor
+from vr_dex_retargeting.optimizer_utils import LPFilter
+from vr_dex_retargeting.robot_wrapper import RobotWrapper
+from vr_dex_retargeting.seq_retarget import SeqRetargeting
+from vr_dex_retargeting.yourdfpy import DUMMY_JOINT_NAMES
 
 
 @dataclass
@@ -165,7 +165,7 @@ class RetargetingConfig:
         return config
 
     def build(self) -> SeqRetargeting:
-        from dex_retargeting.optimizer import (
+        from vr_dex_retargeting.optimizer import (
             VectorOptimizer,
             PositionOptimizer,
             DexPilotOptimizer,
@@ -179,7 +179,7 @@ class RetargetingConfig:
             build_scene_graph=False,
         )
         urdf_name = self.urdf_path.split(os.path.sep)[-1]
-        temp_dir = tempfile.mkdtemp(prefix="dex_retargeting-")
+        temp_dir = tempfile.mkdtemp(prefix="vr_dex_retargeting-")
         temp_path = f"{temp_dir}/{urdf_name}"
         robot_urdf.write_xml_file(temp_path)
 

@@ -4,9 +4,9 @@ from typing import Optional
 import numpy as np
 from pytransform3d import rotations
 
-from dex_retargeting.constants import OPERATOR2MANO, HandType
-from dex_retargeting.optimizer import Optimizer
-from dex_retargeting.optimizer_utils import LPFilter
+from vr_dex_retargeting.constants import OPERATOR2MANO, HandType
+from vr_dex_retargeting.optimizer import Optimizer
+from vr_dex_retargeting.optimizer_utils import LPFilter
 
 
 class SeqRetargeting:

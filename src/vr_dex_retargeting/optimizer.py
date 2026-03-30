@@ -5,11 +5,11 @@ import nlopt
 import numpy as np
 import torch
 
-from dex_retargeting.kinematics_adaptor import (
+from vr_dex_retargeting.kinematics_adaptor import (
     KinematicAdaptor,
     MimicJointKinematicAdaptor,
 )
-from dex_retargeting.robot_wrapper import RobotWrapper
+from vr_dex_retargeting.robot_wrapper import RobotWrapper
 
 
 class Optimizer:

@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "dex_retargeting"
+name = "vr-dex-retargeting"
 version = "0.5.0"
-description = "Hand pose retargeting for dexterous robot hand."
+description = "Hand pose retargeting for dexterous robot hand (VR/HTS fork)."
 authors = [{ name = "Yuzhe Qin", email = "y1qin@ucsd.edu" }]
 license = { text = "MIT" }
 readme = "README.md"
@@ -54,7 +54,7 @@ example = [
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
-known-first-party = ["dex_retargeting"]
+known-first-party = ["vr_dex_retargeting"]
 split-on-trailing-comma = false
 
 [tool.ruff]

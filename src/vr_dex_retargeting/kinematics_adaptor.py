@@ -3,7 +3,7 @@ from typing import List
 
 import numpy as np
 
-from dex_retargeting.robot_wrapper import RobotWrapper
+from vr_dex_retargeting.robot_wrapper import RobotWrapper
 
 
 class KinematicAdaptor:
